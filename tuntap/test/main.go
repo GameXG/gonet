@@ -35,15 +35,15 @@ func main() {
 
 		buf := make([]byte, 1024)
 		sTime := time.Now()
-		for i := 0; i < 1000000; i++ {
+		for i := 0; i < 10000; i++ {
 			err := tap.WritePack(buf)
 			if err != nil {
 				panic(err)
 			}
 		}
 		eTime := time.Now()
-		fmt.Println("同步写入1000000包耗时：", eTime.Sub(sTime))
-		fmt.Println("平均耗时： ", eTime.Sub(sTime)/1000000)
+		fmt.Println("同步写入10000包耗时：", eTime.Sub(sTime))
+		fmt.Println("平均耗时： ", eTime.Sub(sTime)/10000)
 	}()
 
 	time.Sleep(1 * time.Hour)
@@ -64,6 +64,8 @@ tcp 协议要求使用4个元素确定一个连接，虽然一些系统一个端
 最后一步需要注意下，计划使用窗口大小而不是丢包来限制客户端的发包速度。
 
 
-
+完成端口测试结果
+同步写入10000包耗时： 13.7945879s
+平均耗时：  1.379458ms
 
 */

@@ -11,6 +11,7 @@ import (
 
 	"time"
 
+	"github.com/gamexg/go-winio"
 	"github.com/gamexg/gotool/sysinfo"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -136,14 +137,14 @@ func (f *tunTapF) NewTun(addr net.IP, network net.IP, mask net.IP) (Tun, error) 
 		nil); err != nil {
 		return nil, err
 	}
-	/*
-		device, err := winio.MakeOpenFile(tap)
-		if err != nil {
-			return nil, fmt.Errorf("winio.makeOpenFile ,%v", err)
-		}*/
+
+	device, err := winio.MakeOpenFile(tap)
+	if err != nil {
+		return nil, fmt.Errorf("winio.makeOpenFile ,%v", err)
+	}
 	t := tun{
-		handle: tap,
-		//	device:           device,
+		handle:           tap,
+		device:           device,
 		name:             name,
 		netCfgInstanceId: netCfgInstanceId,
 		writeChan:        make(chan []byte, 100),
@@ -340,18 +341,22 @@ func (t *tun) loop_write() error {
 		return fmt.Errorf("windows.CreateEvent : %v", err)
 	}
 	overlappedWx.HEvent = syscall.Handle(hevent)
-	var l uint32
+	//var l uint32
 	for {
 		select {
 		case <-t.closeChan:
 			return fmt.Errorf("主动关闭")
 		case buf := <-t.writeChan:
-			l = uint32(len(buf))
-
-			syscall.WriteFile(t.handle, buf, &l, &overlappedWx)
-			if _, err := syscall.WaitForSingleObject(overlappedWx.HEvent, syscall.INFINITE); err != nil {
-				return fmt.Errorf("Wait WriteFile:%v", err)
+			if _, err := t.device.Write(buf); err != nil {
+				return err
 			}
+			/*
+				l = uint32(len(buf))
+
+				syscall.WriteFile(t.handle, buf, &l, &overlappedWx)
+				if _, err := syscall.WaitForSingleObject(overlappedWx.HEvent, syscall.INFINITE); err != nil {
+					return fmt.Errorf("Wait WriteFile:%v", err)
+				}*/
 		}
 	}
 }
@@ -373,7 +378,7 @@ func (t *tun) loop_read() error {
 		return fmt.Errorf("CreateEvent:%v", err)
 	}
 	overlappedRx.HEvent = syscall.Handle(hevent)
-	var l uint32
+	//var l uint32
 	for {
 		select {
 		case <-t.closeChan:
@@ -382,15 +387,21 @@ func (t *tun) loop_read() error {
 		}
 
 		buf := make([]byte, 2048)
+		/*
+			syscall.ReadFile(t.handle, buf, &l, &overlappedRx)
+			if _, err := syscall.WaitForSingleObject(overlappedRx.HEvent, syscall.INFINITE); err != nil {
+				return fmt.Errorf("Wait ReadFile:%v", err)
+			}
 
-		syscall.ReadFile(t.handle, buf, &l, &overlappedRx)
-		if _, err := syscall.WaitForSingleObject(overlappedRx.HEvent, syscall.INFINITE); err != nil {
-			return fmt.Errorf("Wait ReadFile:%v", err)
+			totalLen := overlappedRx.InternalHigh
+
+			t.readChan <- buf[:totalLen]*/
+
+		if n, err := t.device.Read(buf); err != nil {
+			return err
+		} else {
+			t.readChan <- buf[:n]
 		}
-
-		totalLen := overlappedRx.InternalHigh
-
-		t.readChan <- buf[:totalLen]
 	}
 }
 func (t *tun) ReadPack() ([]byte, error) {
